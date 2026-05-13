@@ -1,4 +1,3 @@
-# Python
 __pycache__/
 *.py[cod]
 *.pyo
@@ -10,25 +9,20 @@ build/
 *.egg
 docs/
 
-# Entornos virtuales
 venv/
 .venv/
 env/
 .env/
 
-# IDEs
-.claude
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
 
-# Pytest
 .pytest_cache/
 .coverage
 htmlcov/
 
-# Sistema
 .DS_Store
 Thumbs.db
 desktop.ini

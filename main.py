@@ -1,15 +1,18 @@
 """
 Escape Room RPG en Español
 """
+from src.grammar import GRAMATICA, formatear_gramatica
 from src.lexer import formatear_tokens, tokenizar
 
 BANNER = """
 ============================================================
-   ESCAPE ROOM RPG — DFA
+   ESCAPE ROOM RPG — DFA + CFG
 ============================================================
-No va a hacer mucho, pero tenemos DFA
-Escribe un comando en español.
-Comandos especiales: 'salir' termina la demo.
+Todavía no parsea, pero ya hay DFA y gramática.
+Escribe un comando en español para tokenizarlo.
+Comandos especiales:
+   'gramatica' muestra la CFG completa
+   'salir'     termina la demo
 """
 
 
@@ -23,9 +26,14 @@ def main():
 
         if not entrada:
             continue
-        if entrada.lower() in {"salir", "exit", "quit"}:
+        cmd = entrada.lower()
+        if cmd in {"salir", "exit", "quit"}:
             print("Hasta luego.")
             break
+        if cmd in {"gramatica", "gramática", "reglas"}:
+            print(formatear_gramatica(GRAMATICA))
+            print()
+            continue
 
         tokens = tokenizar(entrada)
         print(formatear_tokens(tokens))

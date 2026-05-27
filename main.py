@@ -4,12 +4,14 @@ Escape Room RPG en Español
 from src.grammar import GRAMATICA, formatear_gramatica
 from src.lexer import formatear_tokens, tokenizar
 from src.parser import formatear_arboles, parsear
+from src.semantica import formatear_acciones, interpretar_todos
 
 BANNER = """
 ============================================================
-   ESCAPE ROOM RPG — DFA + CFG + Parser Earley
+   ESCAPE ROOM RPG — DFA + CFG + Parser Earley + DCG
 ============================================================
-Escribe un comando en español para tokenizarlo y parsearlo.
+Escribe un comando en español. Verás: tokens, árbol y la
+intención semántica final (estilo DCG / unificación).
 Comandos especiales:
    'gramatica' muestra la CFG completa
    'salir'     termina la demo
@@ -42,6 +44,9 @@ def main():
         print("\nÁrbol de derivación:")
         arboles = parsear(tokens)
         print(formatear_arboles(arboles))
+
+        print("\nIntención:")
+        print(formatear_acciones(interpretar_todos(arboles)))
         print()
 
 

@@ -78,6 +78,9 @@ SUSTANTIVOS = {
     # lugares
     "torre", "sala", "habitacion", "pasillo", "cuarto", "biblioteca",
     "mazmorra", "celda", "patio", "escalera", "calabozo",
+
+    #Nuevos objetos
+    "cadaver", "mano", "etiqueta",
 }
 
 PREPOSICIONES = {

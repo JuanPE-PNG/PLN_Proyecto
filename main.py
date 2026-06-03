@@ -175,8 +175,26 @@ def procesar_comando(juego: ATNJuego, entrada: str, debug: bool = False) -> tupl
         )
         return "\n".join(salida), ""
 
-    # Ejecuta solo la primera acción derivada del comando, para mantenerlo simple.
-    respuesta = juego.ejecutar(acciones[0])
+    # Detección de ambigüedad: el parser pudo devolver varias derivaciones.
+    # Nos quedamos con las interpretaciones semánticamente distintas.
+    interpretaciones: list = []
+    vistas: set[str] = set()
+    for a in acciones:
+        if repr(a) not in vistas:
+            vistas.add(repr(a))
+            interpretaciones.append(a)
+
+    if len(interpretaciones) > 1:
+        salida.append(
+            f"Comando ambiguo: detecté {len(interpretaciones)} interpretaciones posibles:"
+        )
+        for k, a in enumerate(interpretaciones, 1):
+            salida.append(f"  {k}. {a!r}")
+        salida.append(f"Tomaré la más natural → {interpretaciones[0]!r}")
+        salida.append("")
+
+    # Ejecuta la interpretación preferida (la de adjunción más natural).
+    respuesta = juego.ejecutar(interpretaciones[0])
     salida.append(respuesta)
 
     estado_despues = capturar_estado(juego)

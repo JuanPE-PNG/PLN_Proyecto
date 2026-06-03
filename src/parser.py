@@ -1,5 +1,5 @@
 """
-Parser Chart (Earley) — construye árboles de derivación
+Parser Chart (Earley) — construye TODOS los árboles de derivación
 
 Recibe la lista de tokens producida por el DFA (src.lexer) y la CFG definida
 en src.grammar, y devuelve uno o más árboles de derivación.
@@ -8,8 +8,7 @@ en src.grammar, y devuelve uno o más árboles de derivación.
     CYK exige que la gramática esté en Forma Normal de Chomsky (todas las
     producciones de la forma A → BC ó A → a). Nuestra gramática tiene
     producciones como  Comando → FV FN FP  y  FN → ARTICULO ADJETIVO SUSTANTIVO,
-    de longitud 3. Earley acepta cualquier CFG sin reescribirla, así que la
-    gramática del COMMIT 3 se usa tal cual.
+    de longitud 3. Earley acepta cualquier CFG sin reescribirla.
 
 Algoritmo (resumen):
     Un "ítem" Earley es una producción con un punto en alguna posición del RHS
@@ -30,13 +29,10 @@ Algoritmo (resumen):
                 para cada ítem  [A → α • B β, i]  en la columna k,
                 añadir  [A → α B • β, i]  en la columna j.
 
-    La entrada es aceptada si alguna columna final contiene un ítem
-    [S → α •, 0]. Cada ítem guarda referencias a los ítems/tokens que lo
-    "completaron", lo que permite reconstruir el árbol.
 """
 
 from dataclasses import dataclass, field
-from typing import Union
+from itertools import product
 
 from src.grammar import GRAMATICA, Gramatica, Produccion
 from src.lexer import Token
@@ -59,11 +55,9 @@ class NodoArbol:
         return self.token is not None and not self.hijos
 
 
-Hijo = Union["Item", Token]
-
-
 @dataclass
 class Item:
+    # Estado Earley
     produccion: Produccion
     punto: int          # posición del punto dentro de produccion.rhs
     origen: int         # columna del chart donde nació este ítem
@@ -90,29 +84,31 @@ class Item:
 
 
 def parsear(tokens: list[Token], gram: Gramatica = GRAMATICA) -> list[NodoArbol]:
-    """Parsea la lista de tokens y devuelve todos los árboles de derivación.
-
-    Lista vacía → la entrada no pertenece al lenguaje generado por la CFG.
-    """
+    
     if not tokens:
         return []
 
     n = len(tokens)
     chart: list[list[Item]] = [[] for _ in range(n + 1)]
-    visto: list[dict[tuple, Item]] = [dict() for _ in range(n + 1)]
+    visto: list[set[tuple]] = [set() for _ in range(n + 1)]
 
-    def añadir(col: int, item: Item) -> None:
-        # Deduplicamos por clave (produccion, punto, origen). Para gramáticas
-        # ambiguas esto descarta derivaciones alternativas; nuestra gramática
-        # del juego es de hecho no ambigua para los comandos válidos.
-        if item.clave() in visto[col]:
-            return
-        visto[col][item.clave()] = item
-        chart[col].append(item)
+    derivaciones: dict[tuple, list[tuple]] = {}
+
+    def añadir_estado(col: int, item: Item) -> None:
+        if item.clave() not in visto[col]:
+            visto[col].add(item.clave())
+            chart[col].append(item)
+
+    def añadir_derivacion(clave: tuple, fin: int, hijos: tuple) -> None:
+        lista = derivaciones.setdefault((clave, fin), [])
+        if hijos not in lista:
+            lista.append(hijos)
 
     # Inicialización: S → • α  por cada producción de S, en la columna 0.
     for p in gram.producciones_de(gram.S):
-        añadir(0, Item(p, 0, 0))
+        it = Item(p, 0, 0)
+        añadir_estado(0, it)
+        añadir_derivacion(it.clave(), 0, ())
 
     # Bucle principal: cada columna se procesa hasta el punto fijo.
     for i in range(n + 1):
@@ -120,54 +116,80 @@ def parsear(tokens: list[Token], gram: Gramatica = GRAMATICA) -> list[NodoArbol]
         while j < len(chart[i]):
             item = chart[i][j]
             j += 1
+            ck = item.clave()
 
             if item.completo:
-                # COMPLETE
-                # Snapshot porque podemos añadir a la misma columna (origen==i)
+                lhs = item.produccion.lhs
                 for cand in list(chart[item.origen]):
-                    if cand.siguiente == item.produccion.lhs:
-                        añadir(i, Item(
-                            cand.produccion,
-                            cand.punto + 1,
-                            cand.origen,
-                            cand.hijos + (item,),
-                        ))
+                    if cand.siguiente == lhs:
+                        nuevo = Item(cand.produccion, cand.punto + 1, cand.origen)
+                        añadir_estado(i, nuevo)
+                        for alt in derivaciones.get((cand.clave(), item.origen), [()]):
+                            añadir_derivacion(nuevo.clave(), i, alt + ((ck, i),))
                 continue
 
             siguiente = item.siguiente
             if gram.es_no_terminal(siguiente):
                 # PREDICT
                 for p in gram.producciones_de(siguiente):
-                    añadir(i, Item(p, 0, i))
+                    pit = Item(p, 0, i)
+                    añadir_estado(i, pit)
+                    añadir_derivacion(pit.clave(), i, ())
             elif i < n and tokens[i].tipo.value == siguiente:
                 # SCAN
-                añadir(i + 1, Item(
-                    item.produccion,
-                    item.punto + 1,
-                    item.origen,
-                    item.hijos + (tokens[i],),
-                ))
+                nuevo = Item(item.produccion, item.punto + 1, item.origen)
+                añadir_estado(i + 1, nuevo)
+                for alt in derivaciones.get((ck, i), [()]):
+                    añadir_derivacion(nuevo.clave(), i + 1, alt + (tokens[i],))
 
-    # Recolectar ítems aceptantes en la última columna.
+    memo: dict[tuple, list[NodoArbol]] = {}
+
+    def construir(clave: tuple, fin: int) -> list[NodoArbol]:
+        if (clave, fin) in memo:
+            return memo[(clave, fin)]
+        produccion: Produccion = clave[0]
+        arboles_aqui: list[NodoArbol] = []
+        for alt in derivaciones.get((clave, fin), []):
+            opciones_por_posicion: list[list[NodoArbol]] = []
+            for elem in alt:
+                if isinstance(elem, Token):
+                    hoja = NodoArbol(elem.lexema, token=elem)
+                    opciones_por_posicion.append([NodoArbol(elem.tipo.value, hijos=[hoja])])
+                else:
+                    hijo_clave, hijo_fin = elem
+                    opciones_por_posicion.append(construir(hijo_clave, hijo_fin))
+            if opciones_por_posicion:
+                for combo in product(*opciones_por_posicion):
+                    arboles_aqui.append(NodoArbol(produccion.lhs, hijos=list(combo)))
+            else:
+                arboles_aqui.append(NodoArbol(produccion.lhs, hijos=[]))
+        memo[(clave, fin)] = arboles_aqui
+        return arboles_aqui
+
     arboles: list[NodoArbol] = []
     for item in chart[n]:
         if item.completo and item.produccion.lhs == gram.S and item.origen == 0:
-            arboles.append(_construir_arbol(item))
-    return arboles
+            arboles.extend(construir(item.clave(), n))
+
+    arboles.sort(key=_grado_anidamiento)
+    return _sin_duplicados(arboles)
 
 
-def _construir_arbol(item: Item) -> NodoArbol:
-    """Reconstruye el árbol a partir de los backpointers del ítem completo."""
-    hijos: list[NodoArbol] = []
-    for h in item.hijos:
-        if isinstance(h, Item):
-            hijos.append(_construir_arbol(h))
-        else:
-            # Hoja: nodo terminal (VERBO, ARTICULO, ...) con el lexema debajo.
-            hoja = NodoArbol(h.lexema, token=h)
-            hijos.append(NodoArbol(h.tipo.value, hijos=[hoja]))
-    return NodoArbol(item.produccion.lhs, hijos=hijos)
+def _grado_anidamiento(nodo: NodoArbol) -> int:
+    c = 1 if nodo.simbolo == "FN" and any(h.simbolo == "FN" for h in nodo.hijos) else 0
+    for h in nodo.hijos:
+        c += _grado_anidamiento(h)
+    return c
 
+def _sin_duplicados(arboles: list[NodoArbol]) -> list[NodoArbol]:
+    vistos: set[str] = set()
+    unicos: list[NodoArbol] = []
+    for a in arboles:
+        clave = formatear_arbol(a)
+        if clave not in vistos:
+            vistos.add(clave)
+            unicos.append(a)
+    return unicos
 
 
 def formatear_arbol(nodo: NodoArbol) -> str:

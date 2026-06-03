@@ -80,11 +80,17 @@ def rol_por_defecto(verbo: str) -> str:
 class Objeto:
     nucleo: str                       # sustantivo: llave, cofre, ...
     modificador: str | None = None    # adjetivo:   dorada, oxidado, ...
+    complemento: "Complemento | None" = None  # PP que modifica al sustantivo
 
     def __repr__(self) -> str:
         if self.modificador:
-            return f"objeto({self.nucleo}, {self.modificador})"
-        return f"objeto({self.nucleo})"
+            base = f"objeto({self.nucleo}, {self.modificador})"
+        else:
+            base = f"objeto({self.nucleo})"
+        if self.complemento is not None:
+            # Adjunción de PP al sustantivo: "el cofre con la llave".
+            return f"{base}[{self.complemento!r}]"
+        return base
 
 
 @dataclass
@@ -161,20 +167,32 @@ def _interpretar_fv(fv: NodoArbol) -> str:
 
 def _interpretar_fn(fn: NodoArbol) -> Objeto:
     """FN → ART SUST | ART ADJ SUST | ART SUST ADJ | SUST | ADJ SUST | SUST ADJ
+            | FN FP
 
     El artículo se descarta semánticamente (no aporta intención).
     El adjetivo, si está, se unifica como `modificador` del objeto.
+    Si el FN lleva un FP adjunto (FN → FN FP), ese PP se interpreta como
+    `complemento` del objeto — es la lectura "el cofre con la llave".
     """
     nucleo: str | None = None
     modificador: str | None = None
+    complemento: Complemento | None = None
     for h in fn.hijos:
         if h.simbolo == "SUSTANTIVO":
             nucleo = _lexema(h)
         elif h.simbolo == "ADJETIVO":
             modificador = _lexema(h)
+        elif h.simbolo == "FN":
+            # FN → FN FP: el núcleo viene del FN interno.
+            sub = _interpretar_fn(h)
+            nucleo = sub.nucleo
+            modificador = sub.modificador
+            complemento = sub.complemento
+        elif h.simbolo == "FP":
+            complemento = _interpretar_fp(h, None)
         # ARTICULO se ignora
     assert nucleo is not None, "Todo FN tiene un SUSTANTIVO"
-    return Objeto(nucleo=nucleo, modificador=modificador)
+    return Objeto(nucleo=nucleo, modificador=modificador, complemento=complemento)
 
 
 def _interpretar_fp(fp: NodoArbol, verbo: str | None) -> Complemento:

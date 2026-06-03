@@ -193,6 +193,31 @@ class TestFormato:
         assert s.splitlines()[0] == "S"
 
 
+class TestAmbiguedad:
+
+    def test_comando_con_pp_es_ambiguo(self):
+        arboles = parse_texto("examinar el cofre con la llave")
+        assert len(arboles) == 2
+
+    def test_los_dos_arboles_son_estructuralmente_distintos(self):
+        arboles = parse_texto("examinar el cofre con la llave")
+        assert formatear_arbol(arboles[0]) != formatear_arbol(arboles[1])
+
+    def test_ambos_arboles_recuperan_la_misma_oracion(self):
+        arboles = parse_texto("abrir el cofre con la llave")
+        hojas = {tuple(recolectar_hojas(a)) for a in arboles}
+        assert hojas == {("abrir", "el", "cofre", "con", "la", "llave")}
+
+    def test_arbol_principal_es_adjuncion_alta(self):
+        arbol = parse_texto("examinar el cofre con la llave")[0]
+        comando = arbol.hijos[0]
+        assert any(h.simbolo == "FP" for h in comando.hijos)
+
+    def test_comando_sin_pp_no_es_ambiguo(self):
+        assert len(parse_texto("tomar la llave dorada")) == 1
+        assert len(parse_texto("ir al norte")) == 1
+
+
 class TestEjemplosDelJuego:
     @pytest.mark.parametrize("frase", [
         "tomar la llave",

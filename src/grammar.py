@@ -71,6 +71,12 @@ PRODUCCIONES: list[Produccion] = [
     Produccion("FN", ("ADJETIVO", "SUSTANTIVO")),
     Produccion("FN", ("SUSTANTIVO", "ADJETIVO")),
 
+    # Adjunción de un sintagma preposicional a un sustantivo: "el cofre con la
+    # llave". Convive con Comando → FV FN FP, lo que genera la ambigüedad
+    # clásica de adjunción de PP ("¿la llave abre el cofre, o es el cofre que
+    # tiene la llave?"), análoga a "vi al profesor con los binoculares".
+    Produccion("FN", ("FN", "FP")),
+
     Produccion("FP", ("PREPOSICION", "FN")),
     Produccion("FP", ("PREPOSICION", "DIRECCION")),
 ]

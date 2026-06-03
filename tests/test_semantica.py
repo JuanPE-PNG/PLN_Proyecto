@@ -140,6 +140,31 @@ class TestEjemplosDelEnunciado:
 
 
 # ---------------------------------------------------------------------------
+# Ambigüedad: dos interpretaciones para el mismo comando
+# ---------------------------------------------------------------------------
+class TestAmbiguedad:
+    def test_pp_produce_dos_interpretaciones_distintas(self):
+        arboles = parsear(tokenizar("examinar el cofre con la llave"))
+        acciones = interpretar_todos(arboles)
+        reprs = {repr(a) for a in acciones}
+        assert len(reprs) == 2
+
+    def test_lectura_instrumento_y_lectura_modificador(self):
+        acciones = interpretar_todos(parsear(tokenizar("abrir el cofre con la llave")))
+        reprs = {repr(a) for a in acciones}
+        assert "accion(abrir, objeto(cofre), instrumento(objeto(llave)))" in reprs
+        assert (
+            "accion(abrir, objeto(cofre)[instrumento(objeto(llave))], ubicacion(None))"
+            in reprs
+        )
+
+    def test_lectura_natural_es_la_primera(self):
+        acciones = interpretar_todos(parsear(tokenizar("abrir el cofre con la llave")))
+        assert acciones[0].complemento is not None
+        assert acciones[0].objeto.complemento is None
+
+
+# ---------------------------------------------------------------------------
 # Casos múltiples / formateo
 # ---------------------------------------------------------------------------
 class TestUtilidades:

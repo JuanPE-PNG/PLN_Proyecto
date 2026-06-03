@@ -192,7 +192,7 @@ class ATNJuego:
         """
         verbo = accion.verbo
 
-        if verbo in {"ir", "mover", "moverse", "caminar", "correr", "entrar", "salir"}:
+        if verbo in {"ir", "mover", "moverse", "caminar", "correr", "subir", "bajar", "entrar", "salir"}:
             return self._mover(accion)
 
         if verbo in {"tomar", "coger", "agarrar", "recoger"}:
